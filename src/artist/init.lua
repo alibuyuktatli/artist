@@ -11,6 +11,7 @@ return function()
   context:require "artist.items.annotate"
   context:require "artist.items.annotations"
   context:require "artist.items.dropoff"
+  context:require "artist.items.output"
   context:require "artist.items.furnaces"
   context:require "artist.items.inventories"
   context:require "artist.items.trashcan"
