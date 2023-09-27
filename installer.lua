@@ -12,6 +12,7 @@ local files = {
   "artist/items/annotations.lua",
   "artist/items/cache.lua",
   "artist/items/dropoff.lua",
+  "artist/items/output.lua",
   "artist/items/furnaces.lua",
   "artist/items/inventories.lua",
   "artist/items/trashcan.lua",
