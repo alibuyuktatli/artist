@@ -44,7 +44,7 @@ return function(context)
                 _items:extract(chest, item, req)
               elseif contentCache[item] > itemCount then
                 local totalRemove = contentCache[item] - itemCount
-                while totalRemove > 0 do
+                --while totalRemove > 0 do
                   for cSlot, cItem in pairs(contents) do
                     if item == cItem.name then
                       if cItem.count - totalRemove > 0 then
@@ -56,7 +56,7 @@ return function(context)
                       end
                     end
                   end
-                end
+                --end
               end
             else
               _items:extract(chest, item, itemCount)
