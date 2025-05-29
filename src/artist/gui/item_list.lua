@@ -8,7 +8,7 @@ local function compare_count(a, b)
   if a.count == b.count then
     return a.displayName >= b.displayName
   else
-    return a.count >= b.count
+    return a.count or 0 >= b.count or 0
   end
 end
 
@@ -22,16 +22,51 @@ local function compare_scores(scores)
   end
 end
 
+local craftlist_path = ".artist.d/craftlist.json"
+local craft_items_cache = {}
+
+local function load_craftlist_items()
+  craft_items_cache = {}
+  if fs.exists(craftlist_path) then
+    local h = fs.open(craftlist_path, "r")
+    local content = h.readAll()
+    h.close()
+    local craftlist = textutils.unserialiseJSON(content) or {}
+    for item_name, v in pairs(craftlist) do
+      craft_items_cache[item_name] = v and v.display_name or item_name
+    end
+  end
+end
+
+-- Başlangıçta craftlist itemlarını yükle
+load_craftlist_items()
+
 local function build_list(items, filter)
   local result, n = {}, 1
+  local seen = {}
+
+  -- Normal itemler
   if filter == "" or filter == nil then
     for _, item in pairs(items) do
       if item.count > 0 then
         result[n] = item
+        seen[item.hash] = true
         n = n + 1
       end
     end
-
+    -- Craftlist itemleri ekle
+    for craft_name, display_name in pairs(craft_items_cache) do
+      if not seen[craft_name] then
+        result[n] = {
+          hash = craft_name,
+          displayName = display_name or craft_name,
+          count = "Craft",
+          annotations = {},
+          craft = true,
+        }
+        n = n + 1
+      end
+    end
     table.sort(result, compare_count)
   else
     local scores = {}
@@ -46,13 +81,26 @@ local function build_list(items, filter)
         end
 
         if score > 0 then
-          scores[item] = score
+          scores[item] = score or 0
           result[n] = item
+          seen[item.hash] = true
           n = n + 1
         end
       end
     end
-
+    -- Craftlist itemleri ekle (filtreye göre)
+    for craft_name, display_name in pairs(craft_items_cache) do
+      if not seen[craft_name] and (display_name or craft_name):lower():find(filter:lower(), 1, true) then
+        result[n] = {
+          hash = craft_name,
+          displayName = display_name or craft_name,
+          count = "Craft",
+          annotations = {},
+          craft = true,
+        }
+        n = n + 1
+      end
+    end
     table.sort(result, compare_scores(scores))
   end
 
@@ -272,4 +320,9 @@ function ItemList:get_selected()
   return self._display_items[self._index]
 end
 
+
+-- load_craftlist_items fonksiyonunu dışarıya aç
+ItemList.load_craftlist_items = load_craftlist_items
+
 return ItemList
+

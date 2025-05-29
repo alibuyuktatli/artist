@@ -21,6 +21,12 @@ return function(context)
   local protected_slots = {}
   for i = 1, 16 do protected_slots[i] = false end
   local scheduled_dropoff = false
+  local dropoff_craft_disable = false
+
+  -- scheduled_dropoff'u dışarıdan kontrol için fonksiyon ekle
+  function set_dropoff_craft_disable(val)
+    dropoff_craft_disable = val
+  end
 
   -- Create a separate task queue for turtle tasks.
   local turtle_tasks = concurrent.create_runner(1)
@@ -77,10 +83,11 @@ return function(context)
 
     while true do
       os.pullEvent("turtle_inventory")
-      if not scheduled_dropoff then
-        scheduled_dropoff = true
-        turtle_tasks.spawn(turtle_dropoff)
-      end
+      -- scheduled_dropoff kontrolü eklendi
+        if not scheduled_dropoff and dropoff_craft_disable == false then
+          scheduled_dropoff = true
+          turtle_tasks.spawn(turtle_dropoff)
+        end
     end
   end)
 
@@ -91,4 +98,9 @@ return function(context)
       turtle_tasks.spawn(function() turtle_pickup(hash) end)
     end)
   end)
+
+  -- scheduled_dropoff setter'ı export et
+  return {
+    set_dropoff_craft_disable = set_dropoff_craft_disable,
+  }
 end
