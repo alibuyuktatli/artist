@@ -380,6 +380,63 @@ return function(context, extract_items)
         ["C-d"] = function() ui:pop() end,
         ["C-S-f"] = push_furnace,
         ["C-x"] = push_craft_pattern, -- Ctrl+X ile craft pattern gui
+        ["C-z"] = function()
+          local selected = item_list:get_selected()
+          if selected then
+            if selected.craft then
+              show_craft_input(selected)
+            else
+              -- Normal eşya ise craftlistte karşılığı var mı bak
+              local craftlist_path = ".artist.d/craftlist.json"
+              if fs.exists(craftlist_path) then
+                local h = fs.open(craftlist_path, "r")
+                local content = h.readAll()
+                h.close()
+                local craftlist = textutils.unserialiseJSON(content) or {}
+                if craftlist[selected.hash] then
+                  show_craft_input({
+                    hash = selected.hash,
+                    craft = true,
+                    displayName = (craftlist[selected.hash].display_name or selected.displayName)
+                  })
+                end
+              end
+            end
+          end
+        end,
+        ["C-n"] = function()
+          local selected = item_list:get_selected()
+          if selected then
+            local craftlist_path = ".artist.d/craftlist.json"
+            if fs.exists(craftlist_path) then
+              local h = fs.open(craftlist_path, "r")
+              local content = h.readAll()
+              h.close()
+              local craftlist = textutils.unserialiseJSON(content) or {}
+              local hash_to_remove = selected.hash
+              -- Eğer normal eşya ise craftlistte karşılığı var mı bak
+              if not selected.craft and craftlist[selected.hash] then
+                hash_to_remove = selected.hash
+              elseif selected.craft then
+                hash_to_remove = selected.hash
+              else
+                hash_to_remove = nil
+              end
+              if hash_to_remove and craftlist[hash_to_remove] then
+                craftlist[hash_to_remove] = nil
+                local h2 = fs.open(craftlist_path, "w")
+                h2.write(textutils.serialiseJSON(craftlist))
+                h2.close()
+                -- Cache'i yenile
+                if ItemList and ItemList.load_craftlist_items then
+                  ItemList.load_craftlist_items()
+                end
+                -- Listeyi güncelle
+                item_list:set_filter("")
+              end
+            end
+          end
+        end,
       },
       children = {
         gui.Input {
