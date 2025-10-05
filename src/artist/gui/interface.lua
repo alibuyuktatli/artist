@@ -15,7 +15,8 @@ return function(context, extract_items)
   local ui = gui.UI(term.current())
   local function pop_frame() ui:pop() end
 
-  local function craft_item_flow(item_name, craft_amount, on_done)
+  local function craft_item_flow(item, craft_amount, on_done)
+    local item_name = item.hash
     local craftlist_path = ".artist.d/craftlist.json"
     local items = context:require("artist.core.items")
     local turtle_name = config.turtle_peripheral_name
@@ -26,21 +27,25 @@ return function(context, extract_items)
       h.close()
       craftlist = textutils.unserialiseJSON(content) or {}
     end
+    item.display_name = craftlist[item_name].display_name
 
     -- 1. Gerekli tüm malzemeleri ve craft adımlarını hesapla
     local function calculate_craft_requirements(target, amount)
       local required_items = {}
       local craft_steps = {}
 
-      local function add_required(name, amt)
-        required_items[name] = (required_items[name] or 0) + amt
+      local function add_required(name, amt, display_name)
+        if not required_items[name] then
+          required_items[name] = {amt = 0, display_name = display_name}
+        end
+        required_items[name].amt = required_items[name].amt + amt
       end
 
-      local function resolve(name, amt)
+      local function resolve(name, amt, display_name)
         local entry = items:get_item(name)
         local inv_count = entry and entry.count or 0
         if inv_count >= amt then
-          add_required(name, amt)
+          add_required(name, amt, display_name)
           return
         end
 
@@ -53,22 +58,23 @@ return function(context, extract_items)
           -- Alt malzemeleri craft.pattern'deki miktarları toplayarak hesapla
           local sub_needed = {}
           for _, sub in ipairs(craft.pattern) do
-            sub_needed[sub.name] = (sub_needed[sub.name] or 0) + 1
+            local existing = sub_needed[sub.name]
+            sub_needed[sub.name] = {count = (existing and existing.count or 0) + 1, display_name = sub.display_name}
           end
-          for sub_name, sub_count in pairs(sub_needed) do
+          for sub_name, sub_value in pairs(sub_needed) do
             -- Her craft işlemi için sub_count kadar gerekiyor, toplamda to_craft * sub_count kadar lazım
-            resolve(sub_name, to_craft * sub_count)
+            resolve(sub_name, to_craft * sub_value.count, sub_value.display_name)
           end
 
           -- Envanterde varsa kalan miktarı ekle
-          if inv_count > 0 then add_required(name, inv_count) end
+          if inv_count > 0 then add_required(name, inv_count, display_name) end
         else
           -- Craftlanamayan base item
-          add_required(name, amt)
+          add_required(name, amt, display_name)
         end
       end
 
-      resolve(target, amount)
+      resolve(target, amount, item.display_name)
 
       -- craft_steps tablosunu terse çevir
       local reversed_steps = {}
@@ -76,9 +82,9 @@ return function(context, extract_items)
         table.insert(reversed_steps, craft_steps[i])
       end
 
-      for k,v in pairs(reversed_steps) do
-        log(string.format('_ %s %s',v.name, v.amount))
-      end
+      -- for k,v in pairs(reversed_steps) do
+      --   log(string.format('_ %s %s',v.name, v.amount))
+      -- end
       return required_items, reversed_steps
     end
 
@@ -87,19 +93,19 @@ return function(context, extract_items)
 
     -- 2. Gerekli itemlar sistemde var mı kontrol et, eksikleri topla
     local missing = {}
-    for req_name, req_count in pairs(required_items) do
+    for req_name, req_value in pairs(required_items) do
       local entry = items:get_item(req_name)
       local inv_count = entry and entry.count or 0
-      if inv_count < req_count then
-        missing[req_name] = req_count - inv_count
+      if inv_count < req_value.amt then
+        missing[req_name] = {count = req_value.amt - inv_count, display_name = req_value.display_name}
       end
     end
 
     -- 3. Eksik varsa ekrana ve varsa printer'a yazdır, craftı bitir
     if next(missing) then
-      local msg = "Eksik Eşyalar:\n"
+      local msg = "Eksik Esyalar:\n"
       for k, v in pairs(missing) do
-        msg = msg .. ("- %s: %d\n"):format(k, v)
+        msg = msg .. ("- %s: %d\n"):format(v.display_name, v.count)
       end
 
       -- GUI'ye yaz
@@ -108,22 +114,22 @@ return function(context, extract_items)
       end
 
       -- Printer'a yaz
-      if peripheral.find then
-        local printer = peripheral.find("printer")
-        if printer then
-          printer.newPage()
-          printer.setPageTitle("Eksik Craft Malzemeleri")
-          printer.write("Gerekenler:\n")
-          for k, v in pairs(required_items) do
-            printer.write(("- %s: %d\n"):format(k, v))
-          end
-          printer.write("\nEksik:\n")
-          for k, v in pairs(missing) do
-            printer.write(("- %s: %d\n"):format(k, v))
-          end
-          printer.endPage()
-        end
-      end
+      -- if peripheral.find then
+      --   local printer = peripheral.find("printer")
+      --   if printer then
+      --     printer.newPage()
+      --     printer.setPageTitle("Eksik Craft Malzemeleri")
+      --     printer.write("Gerekenler:\n")
+      --     for k, v in pairs(required_items) do
+      --       printer.write(("- %s: %d\n"):format(k, v))
+      --     end
+      --     printer.write("\nEksik:\n")
+      --     for k, v in pairs(missing) do
+      --       printer.write(("- %s: %d\n"):format(k, v))
+      --     end
+      --     printer.endPage()
+      --   end
+      -- end
       return
     end
 
@@ -174,17 +180,20 @@ return function(context, extract_items)
 
     local function do_craft()
       if not input.value or input.value < 1 then return end
-      craft_item_flow(item.hash, input.value, function(success, err)
-        local msg = success and ("Başarıyla craftlandı!") or ("Hata: " .. (err or ""))
+      craft_item_flow(item, input.value, function(success, err)
+        local msg = success and ("Craftlandi.") or (err or "")
         local msg_width = #msg + 4
         local msg_x = math.floor((width - msg_width) / 2) + 1
         local msg_y = math.floor(height / 2)
-        term.setCursorPos(msg_x, msg_y)
+        term.setCursorPos(1, 1)
         term.setBackgroundColour(colours.red)
         term.setTextColour(colours.white)
-        term.clearLine()
-        term.write(msg)
-        sleep(1)
+        print(msg)
+        if success then
+          sleep(.5)
+        else
+          os.pullEvent("key")
+        end
         ui:pop()
       end)
     end
@@ -193,10 +202,10 @@ return function(context, extract_items)
       x = x, y = y, width = dwidth, height = dheight,
       keymap = keybinding.create_keymap { ["enter"] = do_craft, ["C-d"] = pop_frame },
       children = {
-        gui.Text { x = x + 2, y = y + 1, width = dwidth - 4, text = "Kaç tane craftlansın?" },
+        gui.Text { x = x + 2, y = y + 1, width = dwidth - 4, text = "Kac tane craftlansin?" },
         input,
         gui.Button { x = x + 2, y = y + dheight - 2, text = "Craftla", bg = "green", run = do_craft },
-        gui.Button { x = x + dwidth - 10, y = y + dheight - 2, text = "İptal", bg = "red", run = pop_frame },
+        gui.Button { x = x + dwidth - 10, y = y + dheight - 2, text = "Iptal", bg = "red", run = pop_frame },
       },
     })
   end
@@ -286,16 +295,16 @@ return function(context, extract_items)
       turtle_module.set_dropoff_craft_disable(true)
     end
 
-    local info_text = "Guide: Ekranda craft patterninizi koyun.\nTurtle envanterine craft dizilimini yerleştirin.\nKaydet'e basınca pattern kaydedilecek."
+    local info_text = "Craft patternini yapınız..\nKaydet'e basınca pattern kaydedilecek."
     local info_lines = {}
     for line in info_text:gmatch("[^\n]+") do table.insert(info_lines, line) end
 
     local function save_pattern()
       local pattern = {}
       for i = 1, 16 do
-        local detail = turtle.getItemDetail(i)
+        local detail = turtle.getItemDetail(i, true)
         if detail then
-          pattern[i] = { slot = i, name = detail.name }
+          pattern[i] = { slot = i, name = detail.name, displayName = detail.displayName }
         else
           pattern[i] = nil
         end
@@ -303,7 +312,7 @@ return function(context, extract_items)
 
       -- Turtle'da craft işlemi yap
       turtle.craft()
-      local crafted = turtle.getItemDetail(1)
+      local crafted = turtle.getItemDetail(1, true)
       if not crafted then
         if turtle_module and turtle_module.set_dropoff_craft_disable then   
           turtle_module.set_dropoff_craft_disable(false)
@@ -326,11 +335,12 @@ return function(context, extract_items)
       -- patterni craftlist'e ekle (crafted_name anahtarına)
       craftlist[crafted_name] = {
         count = crafted.count,
+        display_name = crafted_display_name,
         pattern = {},
       }
       for i = 1, 16 do
         if pattern[i] then
-          table.insert(craftlist[crafted_name].pattern, { slot = i, name = pattern[i].name })
+          table.insert(craftlist[crafted_name].pattern, { slot = i, name = pattern[i].name, display_name = pattern[i].displayName })
         end
       end
 
