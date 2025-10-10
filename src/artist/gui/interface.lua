@@ -304,6 +304,9 @@ return function(context, extract_items)
       for i = 1, 16 do
         local detail = turtle.getItemDetail(i, true)
         if detail then
+          if detail.nbt then
+            detail.name = detail.name .. "@" .. detail.nbt
+          end
           pattern[i] = { slot = i, name = detail.name, displayName = detail.displayName }
         else
           pattern[i] = nil

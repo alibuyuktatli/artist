@@ -17,7 +17,7 @@ local function compare_scores(scores)
     if scores[a] == scores[b] then
       return compare_count(a, b)
     else
-      return scores[a] > scores[b]
+      return scores[a] or 0 > scores[b] or 0
     end
   end
 end
