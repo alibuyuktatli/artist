@@ -145,8 +145,8 @@ function Items:initialise(context)
   self.item_cache = {}
 
   config = context.config
-    :group("hashing", "Item hashing", true)
-    :define("enable", "enable hashing", true)
+    :group("hashing", "Item hashing")
+    :define("enable", "enable hashing", true, schema.boolean)
     :get()
 end
 
