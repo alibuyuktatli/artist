@@ -126,6 +126,7 @@ local class = require "artist.lib.class"
 local log = require "artist.lib.log".get_logger(...)
 
 local Items = class "artist.core.items" --- @type Items
+local config
 
 --- The constructor for an @{Items} instance.
 --
@@ -142,6 +143,10 @@ function Items:initialise(context)
   -- about the item, the inventories it can be found in and the total count across
   -- all inventories.
   self.item_cache = {}
+
+  config = context.config
+    :group("hashing", "Enable nbt hashing", true)
+    :get()
 end
 
 --- Calculate the hash of a particular item, a combination of the item's name
@@ -154,7 +159,9 @@ local function hash_item(item)
   if item == nil then return nil end
   local hash = item.name
   if not hash then error("Item has no hash") end
-  if item.nbt then hash = hash .. "@" .. item.nbt end
+  if config.hashing then
+    if item.nbt then hash = hash .. "@" .. item.nbt end
+  end
   return hash
 end
 
