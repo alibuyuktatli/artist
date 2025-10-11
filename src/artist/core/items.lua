@@ -124,7 +124,7 @@ local expect = require "cc.expect"
 local expect, field = expect.expect, expect.field
 local class = require "artist.lib.class"
 local log = require "artist.lib.log".get_logger(...)
-
+local schema = require "artist.lib.config".schema
 local Items = class "artist.core.items" --- @type Items
 local config
 
