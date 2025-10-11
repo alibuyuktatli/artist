@@ -304,7 +304,7 @@ return function(context, extract_items)
       for i = 1, 16 do
         local detail = turtle.getItemDetail(i, true)
         if detail then
-          if context.config.data.hashing.enable then
+          if hashingConfig.enable then
             if detail.nbt then
               detail.name = detail.name .. "@" .. detail.nbt
             end
