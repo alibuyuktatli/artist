@@ -8,7 +8,7 @@ local function compare_count(a, b)
   if a.count == b.count then
     return a.displayName >= b.displayName
   else
-    return a.count or 0 >= b.count or 0
+    return a.count >= b.count
   end
 end
 
@@ -38,7 +38,7 @@ local function load_craftlist_items()
   end
 end
 
--- Başlangıçta craftlist itemlarını yükle
+-- BaÅlangÄ±Ã§ta craftlist itemlarÄ±nÄ± yÃ¼kle
 load_craftlist_items()
 
 local function build_list(items, filter)
@@ -60,7 +60,7 @@ local function build_list(items, filter)
         result[n] = {
           hash = craft_name,
           displayName = display_name or craft_name,
-          count = "Craft",
+          count = -1,
           annotations = {},
           craft = true,
         }
@@ -88,13 +88,13 @@ local function build_list(items, filter)
         end
       end
     end
-    -- Craftlist itemleri ekle (filtreye göre)
+    -- Craftlist itemleri ekle (filtreye gÃ¶re)
     for craft_name, display_name in pairs(craft_items_cache) do
       if not seen[craft_name] and (display_name or craft_name):lower():find(filter:lower(), 1, true) then
         result[n] = {
           hash = craft_name,
           displayName = display_name or craft_name,
-          count = "Craft",
+          count = -1,
           annotations = {},
           craft = true,
         }
@@ -181,9 +181,13 @@ function ItemList:draw(term, palette)
     term.clearLine()
 
     if item then
+      local count = item.count
+      if count < 0 then
+        count = "Craft"
+      end
       term.write(format:format(
         (item.craft and "\16 " or "  ") .. item.displayName:sub(1, max_width - 2),
-        item.count
+        count
       ))
     end
   end
@@ -321,7 +325,7 @@ function ItemList:get_selected()
 end
 
 
--- load_craftlist_items fonksiyonunu dışarıya aç
+-- load_craftlist_items fonksiyonunu dÄ±ÅarÄ±ya aÃ§
 ItemList.load_craftlist_items = load_craftlist_items
 
 return ItemList
