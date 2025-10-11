@@ -145,7 +145,8 @@ function Items:initialise(context)
   self.item_cache = {}
 
   config = context.config
-    :group("hashing", "Enable nbt hashing", true)
+    :group("hashing", "Item hashing", true)
+    :define("enable", "enable hashing", true)
     :get()
 end
 
@@ -159,7 +160,7 @@ local function hash_item(item)
   if item == nil then return nil end
   local hash = item.name
   if not hash then error("Item has no hash") end
-  if config.hashing then
+  if config.enable then
     if item.nbt then hash = hash .. "@" .. item.nbt end
   end
   return hash
