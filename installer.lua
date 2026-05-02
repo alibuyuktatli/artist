@@ -15,6 +15,8 @@ local files = {
   "artist/items/output.lua",
   "artist/items/furnaces.lua",
   "artist/items/inventories.lua",
+  "artist/items/display.lua",
+  "artist/items/crafting.lua",
   "artist/items/trashcan.lua",
   "artist/lib/class.lua",
   "artist/lib/concurrent.lua",
