@@ -3,6 +3,7 @@ local concurrent = require "artist.lib.concurrent"
 local Items = require "artist.core.items"
 local turtle_helpers = require "artist.lib.turtle"
 local schema = require "artist.lib.config".schema
+local log = require("artist.lib.log").get_logger("artist.items.crafting")
 
 return function(context)
   local this_turtle = turtle_helpers.get_name()
@@ -21,12 +22,13 @@ return function(context)
   local protected_slots = {}
   for i = 1, 16 do protected_slots[i] = false end
   local scheduled_dropoff = false
-  local dropoff_craft_disable = false
+  local teaching = false
+  local crafting = 0
 
-  -- scheduled_dropoff'u dışarıdan kontrol için fonksiyon ekle
-  function set_dropoff_craft_disable(val)
-    dropoff_craft_disable = val
-  end
+  context.mediator:subscribe("craft_teach.start", function() teaching = true end)
+  context.mediator:subscribe("craft_teach.end", function() teaching = false end)
+  context.mediator:subscribe("craft.started", function() crafting = crafting + 1 end)
+  context.mediator:subscribe("craft.finished", function() crafting = math.max(0, crafting - 1) end)
 
   -- Create a separate task queue for turtle tasks.
   local turtle_tasks = concurrent.create_runner(1)
@@ -56,7 +58,11 @@ return function(context)
 
   local function turtle_dropoff()
     scheduled_dropoff = false
+    if teaching then return end
+    if crafting > 0 then return end
     if extract_tasks > 0 then return end
+    log("crafting: " .. crafting)
+    log("extract_tasks" .. extract_tasks)
 
     for i = 1, 16 do
       local protect_item = protected_slots[i]
@@ -83,11 +89,10 @@ return function(context)
 
     while true do
       os.pullEvent("turtle_inventory")
-      -- scheduled_dropoff kontrolü eklendi
-        if not scheduled_dropoff and dropoff_craft_disable == false then
-          scheduled_dropoff = true
-          turtle_tasks.spawn(turtle_dropoff)
-        end
+      if not scheduled_dropoff then
+        scheduled_dropoff = true
+        turtle_tasks.spawn(turtle_dropoff)
+      end
     end
   end)
 
@@ -98,9 +103,4 @@ return function(context)
       turtle_tasks.spawn(function() turtle_pickup(hash) end)
     end)
   end)
-
-  -- scheduled_dropoff setter'ı export et
-  return {
-    set_dropoff_craft_disable = set_dropoff_craft_disable,
-  }
 end

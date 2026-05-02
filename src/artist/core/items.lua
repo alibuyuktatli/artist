@@ -124,9 +124,8 @@ local expect = require "cc.expect"
 local expect, field = expect.expect, expect.field
 local class = require "artist.lib.class"
 local log = require "artist.lib.log".get_logger(...)
-local schema = require "artist.lib.config".schema
+
 local Items = class "artist.core.items" --- @type Items
-local config
 
 --- The constructor for an @{Items} instance.
 --
@@ -143,11 +142,6 @@ function Items:initialise(context)
   -- about the item, the inventories it can be found in and the total count across
   -- all inventories.
   self.item_cache = {}
-
-  config = context.config
-    :group("hashing", "Item hashing")
-    :define("enable", "enable hashing", true, schema.boolean)
-    :get()
 end
 
 --- Calculate the hash of a particular item, a combination of the item's name
@@ -160,9 +154,7 @@ local function hash_item(item)
   if item == nil then return nil end
   local hash = item.name
   if not hash then error("Item has no hash") end
-  if config.enable then
-    if item.nbt then hash = hash .. "@" .. item.nbt end
-  end
+  if item.nbt then hash = hash .. "@" .. item.nbt end
   return hash
 end
 
@@ -539,7 +531,7 @@ function Items:extract(to, hash, count, to_slot, done)
   local tasks, transferred = 0, 0
   local function finish_job(val)
     tasks = tasks - 1
-    val = transferred + val
+    transferred = transferred + (val or 0)
     if tasks == 0 then done(transferred) end
   end
 

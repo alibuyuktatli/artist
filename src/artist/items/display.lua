@@ -32,6 +32,11 @@ return function(context)
   ]]
 
   local monitor = peripheral.find("monitor")
+  if not monitor then
+    -- No monitor attached; don't run this module.
+    return
+  end
+
   local function redraw()
     monitor.setTextColour(colours.black)
     monitor.setBackgroundColour(colours.white)

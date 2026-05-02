@@ -17,90 +17,47 @@ local function compare_scores(scores)
     if scores[a] == scores[b] then
       return compare_count(a, b)
     else
-      return scores[a] or 0 > scores[b] or 0
+      return scores[a] > scores[b]
     end
   end
 end
-
-local craftlist_path = ".artist.d/craftlist.json"
-local craft_items_cache = {}
-
-local function load_craftlist_items()
-  craft_items_cache = {}
-  if fs.exists(craftlist_path) then
-    local h = fs.open(craftlist_path, "r")
-    local content = h.readAll()
-    h.close()
-    local craftlist = textutils.unserialiseJSON(content) or {}
-    for item_name, v in pairs(craftlist) do
-      craft_items_cache[item_name] = v and v.display_name or item_name
-    end
-  end
-end
-
--- BaÅlangÄ±Ã§ta craftlist itemlarÄ±nÄ± yÃ¼kle
-load_craftlist_items()
 
 local function build_list(items, filter)
   local result, n = {}, 1
-  local seen = {}
-
-  -- Normal itemler
   if filter == "" or filter == nil then
     for _, item in pairs(items) do
-      if item.count > 0 then
+      if (item.count and item.count > 0) or item.craft then
         result[n] = item
-        seen[item.hash] = true
         n = n + 1
       end
     end
-    -- Craftlist itemleri ekle
-    for craft_name, display_name in pairs(craft_items_cache) do
-      if not seen[craft_name] then
-        result[n] = {
-          hash = craft_name,
-          displayName = display_name or craft_name,
-          count = -1,
-          annotations = {},
-          craft = true,
-        }
-        n = n + 1
-      end
-    end
+
     table.sort(result, compare_count)
   else
     local scores = {}
     for _, item in pairs(items) do
-      if item.count > 0 then
+      if (item.count and item.count > 0) or item.craft then
         local score = 0
-        local annotations = item.annotations
+        local annotations = item.annotations or {}
         for i = 1, #annotations do
           local annotation = annotations[i]
           local annotation_score = (fuzzy(annotation.value, filter) or 0) * (annotation.search_factor or 1)
           if annotation_score > score then score = annotation_score end
         end
 
+        if score <= 0 then
+          score = math.max(score, fuzzy(item.displayName or "", filter) or 0)
+          score = math.max(score, fuzzy(item.hash or "", filter) or 0)
+        end
+
         if score > 0 then
-          scores[item] = score or 0
+          scores[item] = score
           result[n] = item
-          seen[item.hash] = true
           n = n + 1
         end
       end
     end
-    -- Craftlist itemleri ekle (filtreye gÃ¶re)
-    for craft_name, display_name in pairs(craft_items_cache) do
-      if not seen[craft_name] and (display_name or craft_name):lower():find(filter:lower(), 1, true) then
-        result[n] = {
-          hash = craft_name,
-          displayName = display_name or craft_name,
-          count = -1,
-          annotations = {},
-          craft = true,
-        }
-        n = n + 1
-      end
-    end
+
     table.sort(result, compare_scores(scores))
   end
 
@@ -123,6 +80,24 @@ function ItemList:initialise(options)
   self._index, self._scroll = 1, 0
 
   self._peeking = false
+
+  -- Preload craftable items from .artist.d/src/craft.json so they appear
+  -- in the list even if the system has zero of them at startup.
+  do
+    local craft = {}
+    local h = fs.open(".artist.d/src/craft.json", "r")
+    if h then
+      local ok, tbl = pcall(textutils.unserializeJSON, h.readAll())
+      h.close()
+      if ok and type(tbl) == "table" then craft = tbl end
+    end
+
+    for key, info in pairs(craft) do
+      if not self._items[key] then
+        self._items[key] = { hash = key, displayName = (info.display_name or key), annotations = {}, count = 0 }
+      end
+    end
+  end
 end
 
 local function update_index(self, new_index)
@@ -181,13 +156,9 @@ function ItemList:draw(term, palette)
     term.clearLine()
 
     if item then
-      local count = item.count
-      if count < 0 then
-        count = "Craft"
-      end
       term.write(format:format(
         (item.craft and "\16 " or "  ") .. item.displayName:sub(1, max_width - 2),
-        count
+        item.count
       ))
     end
   end
@@ -293,6 +264,35 @@ function ItemList:update_items(change)
     end
   end
 
+  -- Mark craftable items based on src/craft.json entries first so build_list
+  -- can include them even if count == 0.
+  do
+    local craft = {}
+    local h = fs.open(".artist.d/src/craft.json", "r")
+    if h then
+      local ok, tbl = pcall(textutils.unserializeJSON, h.readAll())
+      h.close()
+      if ok and type(tbl) == "table" then craft = tbl end
+    end
+
+    for key, info in pairs(craft) do
+      if not self._items[key] then
+        self._items[key] = {
+          hash = key,
+          displayName = (info and info.display_name) or key,
+          annotations = {},
+          count = 0,
+        }
+      end
+    end
+
+    for _, entry in pairs(self._items) do
+      local hash = entry.hash or ""
+      local name = hash:match("^[^@]+") or hash
+      entry.craft = craft[name] ~= nil
+    end
+  end
+
   self._display_items = build_list(self._items, self._filter)
 
   -- Update the index and scroll position. This will perform all the bounds
@@ -324,9 +324,4 @@ function ItemList:get_selected()
   return self._display_items[self._index]
 end
 
-
--- load_craftlist_items fonksiyonunu dÄ±ÅarÄ±ya aÃ§
-ItemList.load_craftlist_items = load_craftlist_items
-
 return ItemList
-

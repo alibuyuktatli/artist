@@ -21,9 +21,7 @@ return function(context)
         local contents = peripheral.call(chest, "list")
         if contents then
           local contentCache = {}
-          -- prepare cache for processing
           for slot, item in pairs(contents) do
-            -- remove other items than filter
             if items[item.name] == nil then
               _items:insert(chest, slot, 64)
             end
@@ -35,7 +33,6 @@ return function(context)
             end
           end
 
-          -- process
           for item, itemCount in pairs(items) do
             if contentCache[item] then
               if contentCache[item] < itemCount then
